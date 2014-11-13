@@ -58,7 +58,7 @@ class DiscountCurveBootstrap:
             dfs[-1] = df
 
         # return the output as a tuple consisting of 2 lists
-        return (pillars, dfs)
+        return DiscountCurve(self.today, pillars, dfs)
 
 
 from dateutil.relativedelta import relativedelta
@@ -76,5 +76,6 @@ if __name__ == '__main__':
     dc_bootstrapper.addProduct(buildOIS(today, 24, 12, 0.05))
 
     dc_curve = dc_bootstrapper.bootstrap()
-    print dc_curve
+    for i, pillar in enumerate(dc_curve.pillars):
+        print pillar, ": ", dc_curve.dfs[i]
 
