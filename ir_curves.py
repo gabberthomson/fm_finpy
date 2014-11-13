@@ -77,7 +77,6 @@ class ForwardLiborCurve:
         # return the resulting interpolated forward rate
         return forwardRate
 
-
 # example
 if __name__ == '__main__':
     # today is the 1st January 2010
