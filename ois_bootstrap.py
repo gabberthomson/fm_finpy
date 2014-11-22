@@ -36,7 +36,7 @@ class DiscountCurveBootstrap:
         if len(self.products) > 0:
             # check that the product to be added has a longer maturity than the onm
             # inserted before: if not generates an error that will stop the program
-            if product.endDate > self.products[-1].endDate:
+            if product.endDate < self.products[-1].endDate:
                 raise "Products not ordered"
         self.products.append(product)
 
