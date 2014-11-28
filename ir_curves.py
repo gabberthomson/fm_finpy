@@ -15,11 +15,6 @@ class DiscountCurve:
     # - pillars: a list of dates at which the discount factor is known
     # - dfs: the known discount factors
     def __init__(self, obsdate, pillars, dfs):
-        # store the input variables
-        self.today = obsdate
-        self.pillars = pillars
-        self.dfs = dfs
-
         # the following generates an error that will block the program
         if pillars[0] < obsdate:
             raise "today is greater than the first pillar date"
@@ -29,7 +24,12 @@ class DiscountCurve:
         if pillars[0] > obsdate:
             pillars.insert(0, obsdate)
             dfs.insert(0, 1.0)
-            
+
+        # store the input variables
+        self.today = obsdate
+        self.pillars = pillars
+        self.dfs = dfs
+
         # dates must be converted to numbers, otherwise the interpolation function will not work
         self.pillars_number = [aDate.toordinal() for aDate in pillars]
 
