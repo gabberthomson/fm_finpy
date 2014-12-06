@@ -32,7 +32,7 @@ class CreditCurve:
             ndps.insert(0, 1.0)
 
         # store the input variables
-        self.today = obsdate
+        self.today = today
         self.pillars = pillars
         self.ndps = ndps
 
