@@ -64,7 +64,7 @@ class ForwardLiborCurve:
         self.forwardLibors = forwardLibors
 
         # dates must be converted to numbers, otherwise the interpolation function will not work
-        self.fixingDates_number = [aDate.toordinal() for aDate in pillars]
+        self.fixingDates_number = [aDate.toordinal() for aDate in fixingDates]
 
 
     def value(self, fixingDate):
@@ -88,7 +88,8 @@ if __name__ == '__main__':
 
     print "Interpolated Discount Factor:", df
     
+    fwd_pillars = [date(2010,1,1), date(2011,1,1), date(2012,1,1)]
     forwardLibors = [0.03, 0.035, 0.042]
-    libor = ForwardLiborCurve(obsdate, pillars, forwardLibors)
+    libor = ForwardLiborCurve(obsdate, fwd_pillars, forwardLibors)
     fwdLibor = libor.value(date(2010,11,1))
     print "Interpolated Forward Libor:", fwdLibor
