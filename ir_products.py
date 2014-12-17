@@ -1,5 +1,7 @@
 from date_conventions import *
 from dateutil.relativedelta import relativedelta
+from numpy.random import normal
+from math import exp, sqrt
 
 def buildSwap(startDate, maturity, floatingTenor, fixedTenor, fixRate, nominal = 1, swapType = "receiver"):
     ''' With this function we build a Standard Swap using:
@@ -8,6 +10,8 @@ def buildSwap(startDate, maturity, floatingTenor, fixedTenor, fixRate, nominal =
     - the payment frequency for the floating leg (number of months between two payments)
     - the payment frequency for the fixed leg
     - the fixRate
+    - the nominal in absolute value (default value = 1)
+    - the swap type (receiver or payer)
     '''
     endDate = startDate + relativedelta(months = maturity)
     floatingDates = dates_generator(floatingTenor, startDate, endDate)
@@ -24,6 +28,9 @@ def buildSwap(startDate, maturity, floatingTenor, fixedTenor, fixRate, nominal =
     return swap
 
 def buildForwardSwap(swap, aDate):
+    ''' With this function we build a forward swap starting from an existing swap
+    It will be used for the swaption
+    '''
     # find first floating leg date
     floatIdx = 0
     while swap.floatingLegDates[floatIdx] <= aDate:
@@ -31,6 +38,7 @@ def buildForwardSwap(swap, aDate):
     if floatIdx > 0:
         floatIdx = floatIdx - 1
 
+    # find first fixed leg date
     fixedIdx = 0
     while swap.fixedLegDates[fixedIdx] <= aDate:
         fixedIdx = fixedIdx + 1
@@ -45,16 +53,18 @@ def buildForwardSwap(swap, aDate):
 
 class Swap:
     ''' We define the product by its:
-    - the tenoe of the underlying libor
-    - the relevant dates of the floating leg
-    - the relecant dares of the fixed leg
-    - the fixRate
-    - the floating leg nomimal (scalar)
-    - the fixed leg nomimal (scalar)
+    - the set of payment dates (plus the start date) of the floating leg
+    - the nominal of the floating leg (+1 if the is receive)
+    - the set of payment dates (plus the start date) of the fixed leg
+    - the coupon of the fixed leg
+    - the nominal of the fixed leg (+1 if the is receive)
     '''
     def __init__(self, floatingLegDates, floatingLegNominal, fixedLegDates, fixRate, fixedLegNominal):
+        # check that the two nominals have opposite sign
         if floatingLegNominal * fixedLegNominal > 0:
             raise "Nominal must have opposite sign"
+
+        # store the input variables
         self.floatingLegDates = floatingLegDates
         self.fixedLegDates = fixedLegDates
         self.fixRate = fixRate
@@ -112,6 +122,44 @@ class Swap:
         npv = fixed_npv + floatingleg_npv
         return npv
 
+    # This function simulates the market value (seen as today) of a forward swap. This forward swap
+    # is actually the swap itself without the flows occurring before the
+    # simulation date. Only ONE simulation is done
+    # The simulation is done in the Annuity measure, where the swap rate (the ratio between
+    # the floating leg npv and the annuity) is a martingale
+    def simulated_npv(self, discountcurve, liborcurve, vol, simuldate):
+        # we build the forward swap
+        fwdswap = buildForwardSwap(self, simuldate)
+
+        # we compute today's ABSOLUTE value of the floating leg
+        floating_leg = fabs(fwdswap.npv_floating_leg(discountcurve, liborcurve))
+
+        # we compute today's ABSOLUTE value of the floating leg
+        annuity = fabs(fwdswap.npv_fixed_leg(discountcurve) / fwdswap.fixRate)
+
+        # We compute the swap rate (whose forward in the annuity measure is the same, since is a martingale)
+        swaprate = floating_leg / annuity
+
+        # we draw a random variable from a standard normal distribution
+        epsilon = normal()
+
+        # We compute the equivalent time in terms of year fraction from today to the simulation date
+        # (we need numbers to make computations)
+        T = dc_act365(discountcurve.today, simuldate)
+
+        # We calculate the simulated swap rate with the lognormal evolution
+        swaprate_simul = swaprate * exp(-0.5 * vol**2 * T + vol * sqrt(T) * epsilon)
+
+        # We compute the value of the swap as if it was a payer swap
+        npv_swap = (swaprate_simul - fwdswap.fixRate) * annuity
+
+        # we change sign if it is a receiver swap
+        if self.floatingLegNominal < 0:
+            npv_swap = npv_swap * -1
+
+        # ok, done, we can return the result
+        return npv_swap
+
 
 from scipy.stats import norm
 from math import log, fabs
@@ -166,6 +214,29 @@ class Swaption:
         price = annuity * self.parity * (swapRate * norm.cdf(self.parity * d1) - self.swap.fixRate * norm.cdf(self.parity * d2))
         return price
 
+    # This function compute the value of the swaption by means of a Montecarlo method.
+    # It actually invokes multiple times (nruns) the simulated_npv function of the swap class.
+    # For each result of this function, it applies the payoff condition, which states that
+    # the option will be exercised only in case of a positive value for the swap
+    def mc_npv(self, discountCurve, libor, vol, nruns):
+        # start with a zero npv
+        npv = 0
+
+        # loop nruns times
+        for i in range(nruns):
+            # simulate the value of the swap
+            swap_npv = self.swap.simulated_npv(discountCurve, libor, vol, self.swaptionExpiry)
+            # Exercise condition: if met sum the result, otherwise do nothing
+            # (which is equivalent to add zero)
+            if swap_npv > 0:
+                npv = npv + swap_npv
+
+        # Divide by nruns to get the average result of the simulation
+        npv = npv / nruns
+
+        # ok, done, return the result
+        return npv
+
 # example
 from ir_curves import DiscountCurve, ForwardLiborCurve
 
@@ -185,11 +256,13 @@ if __name__ == '__main__':
     swap = buildSwap(startSwap, maturity, 6, 12, 0.05069444444445)
     print "swap:", swap.npv(dc, libor)
 
-    swaption = Swaption(swap, date(2011, 1, 1))
-    print "receicer swaption:", swaption.npv(dc, libor, 0.2)
+    reveiver_swaption = Swaption(swap, date(2011, 1, 1))
+    print "receicer swaption:", reveiver_swaption.npv(dc, libor, 0.2)
 
     # we use the function build swap to create the swap
     swap = buildSwap(startSwap, maturity, 6, 12, 0.0506944444444, swapType="payer")
-    swaption = Swaption(swap, date(2011, 1, 1))
-    print "payer swaption:", swaption.npv(dc, libor, 0.2)
+    payer_swaption = Swaption(swap, date(2011, 1, 1))
+    print "payer swaption:", payer_swaption.npv(dc, libor, 0.2)
 
+    print "mc receiver swaption: ", reveiver_swaption.mc_npv(dc, libor, 0.2, 1000)
+    print "mc payer swaption: ", payer_swaption.mc_npv(dc, libor, 0.2, 1000)
