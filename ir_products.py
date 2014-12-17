@@ -168,7 +168,7 @@ from math import log, fabs
 class Swaption:
     # It's an option that gives the right to enter into a swap:
     # it will be excercised if the market value of the swap will
-    # be greater than zero a the swaption expity
+    # be greater than zero a the swaption expiry
     # we need:
     # - a swap
     # - an expiry for the swaption
@@ -176,7 +176,7 @@ class Swaption:
         self.swaptionExpiry = swaptionExpiry
         # since we will enter into a swap at swaption expiry, this swap
         # will be composed only by flows whose maturity is greater than the
-        # expiry of the swap.
+        # expiry of the swaption.
         # This is the reason for which we create new swap, which wil be
         # equal to the one passed as an argument to the __init__, but without
         # all of the flows occurring before the swaption expiry.
