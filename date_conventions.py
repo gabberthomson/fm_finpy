@@ -31,9 +31,11 @@ def dates_generator(tenor, startdate, enddate):
 
     # N.B. We start from the end date and proceed backward in time
     runningdate = enddate
+    i = 1
     while (runningdate > startdate):
         relevantdates.append(runningdate)
-        runningdate = runningdate - relativedelta(months = tenor)
+        runningdate = enddate - relativedelta(months = i * tenor)
+        i = i + 1
     relevantdates.append(startdate)
 
     # we sort these dates from the oldest to the newest
